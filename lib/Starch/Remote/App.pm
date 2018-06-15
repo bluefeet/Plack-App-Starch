@@ -81,7 +81,7 @@ And, finally, the web application returns a response.
 
 =back
 
-See the L</ENDPOINTS> documentation with example of the 
+See L</ENDPOINTS> for more, including example request and response JSON bodies.
 
 =head1 CLIENTS
 
@@ -105,55 +105,6 @@ This may be either a L<Starch> object, or hashref arguments to create one.
 
 The L<Starch::Plugin::CookieArgs> plugin is required.
 
-=head1 ENDPOINTS
-
-=head2 POST /begin
-
-Expects the request content to be a JSON object with a single key, `headers`,
-containing an array of all HTTP headers that the caller received.
-
-Returns a JSON object with the `id` key set to the ID of the Starch state, and
-a `data` key containing the state data.
-
-Example request content:
-
-    {
-        "headers": [
-            "Acccept-Language", "en-us",
-            "Cookie", "session=4f29abc0917cb119a86c8b15e70503a4380667bf"
-        ]
-    }
-
-Example response content:
-
-    {
-        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
-        "data": {"foo":1}
-    }
-
-=head2 POST /finish
-
-Expects the request content to be a JSON object with the `id` key set to the ID
-of the Starch state, and the `data` key set to the new state data to be saved.
-
-Returns a JSON object with the `headers` key set to an array of key/value pairs.
-
-Example request content:
-
-    {
-        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
-        "data": {"foo":1,"bar":2}
-    }
-
-Example response content:
-
-    {
-        "headers": [
-            "Set-Cookie",
-            "session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."
-        ]
-    }
-
 =cut
 
 use Starch;
@@ -172,14 +123,13 @@ use parent 'Plack::Component';
 
 use Plack::Util::Accessor qw(
     starch
-    does_cookie_args
 );
 
 my $json;
 
 sub _detach {
     my ($self, $res) = @_;
-    die ['STARCH-REMOTE-APP-DETACH',$res];
+    die ['STARCH-REMOTE-APP-DETACH', $res];
 }
 
 sub prepare_app {
@@ -270,6 +220,34 @@ sub _decode_req_content {
     ]);
 }
 
+=head1 ENDPOINTS
+
+=head2 POST /begin
+
+Expects the request content to be a JSON object with a single key, `headers`,
+containing an array of all HTTP headers that the caller received.
+
+Returns a JSON object with the `id` key set to the ID of the Starch state, and
+a `data` key containing the state data.
+
+Example request content:
+
+    {
+        "headers": [
+            "Acccept-Language", "en-us",
+            "Cookie", "session=4f29abc0917cb119a86c8b15e70503a4380667bf"
+        ]
+    }
+
+Example response content:
+
+    {
+        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
+        "data": {"foo":1}
+    }
+
+=cut
+
 my $begin_req_type = Dict[
     headers => ArrayRef[ Str ],
 ];
@@ -295,6 +273,31 @@ sub _post_begin {
         [ $json->encode( $output ) ],
     ];
 }
+
+=head2 POST /finish
+
+Expects the request content to be a JSON object with the `id` key set to the ID
+of the Starch state, and the `data` key set to the new state data to be saved.
+
+Returns a JSON object with the `headers` key set to an array of key/value pairs.
+
+Example request content:
+
+    {
+        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
+        "data": {"foo":1,"bar":2}
+    }
+
+Example response content:
+
+    {
+        "headers": [
+            "Set-Cookie",
+            "session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."
+        ]
+    }
+
+=cut
 
 my $finish_req_type = Dict[
     id   => Str,

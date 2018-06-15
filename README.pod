@@ -81,7 +81,7 @@ And, finally, the web application returns a response.
 
 =back
 
-See the L</ENDPOINTS> documentation with example of the 
+See L</ENDPOINTS> for more, including example request and response JSON bodies.
 
 =head1 CLIENTS
 
