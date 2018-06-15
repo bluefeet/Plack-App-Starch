@@ -1,4 +1,4 @@
-=pod
+package Starch::Remote::App;
 
 =head1 NAME
 
@@ -135,6 +135,182 @@ Example response content:
 
     {"headers":["Set-Cookie","session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."]}
 
+=cut
+
+use Starch;
+use JSON;
+use Plack::Request;
+use Scalar::Util qw( blessed );
+use Try::Tiny;
+use HTTP::Headers::Fast;
+use Cookie::Baker;
+use Types::Standard -types;
+
+use strictures 2;
+use namespace::clean;
+
+use parent 'Plack::Component';
+
+use Plack::Util::Accessor qw(
+    starch
+    does_cookie_args
+);
+
+my $json;
+
+sub _detach {
+    my ($self, $res) = @_;
+    die ['STARCH-REMOTE-APP-DETACH',$res];
+}
+
+sub prepare_app {
+    my ($self) = @_;
+
+    $json = JSON->new();
+
+    my $starch = $self->starch();
+    die "The starch argument is required" if !$starch;
+
+    if (!blessed $starch) {
+        $starch = Starch->new( $starch );
+        $self->starch( $starch );
+    }
+
+    die 'The Starch object does not support the cookie_name method (from Starch::Plugin::CookieArgs)'
+        if !$starch->can('cookie_name');
+
+    die 'The Starch state objects do not support the cookie_args method (from Starch::Plugin::CookieArgs)'
+        if !$starch->state->can('cookie_args');
+
+    return;
+}
+
+sub call {
+    my ($self, @args) = @_;
+
+    my $res = try {
+        return $self->_dispatch( @args )
+    }
+    catch {
+        return $_->[1] if ref($_) eq 'ARRAY' and $_->[0] and $_->[0] eq 'STARCH-REMOTE-APP-DETACH';
+
+        warn $_;
+
+        return [
+            500,
+            ['Content-Type' => 'text/plain'],
+            ['Internal Server Error'],
+        ];
+    };
+
+    $res ||= [404, ['Content-Type' => 'text/plain'], ['Not Found']];
+
+    return $res;
+}
+
+sub _dispatch {
+    my ($self, $env) = @_;
+
+    my $starch = $self->starch();
+    my $req = Plack::Request->new( $env );
+    my $path = $req->path();
+    my $verb = $req->method();
+
+    if ($path eq '/begin') {
+        return $self->_post_begin( $req ) if $verb eq 'POST';
+    }
+    elsif ($path eq '/finish') {
+        return $self->_post_finish( $req ) if $verb eq 'POST';
+    }
+
+    return undef;
+}
+
+sub _decode_req_content {
+    my ($self, $req, $type) = @_;
+
+    my $json = $req->content();
+    my $content = try {
+        return $json->decode( $json );
+    }
+    catch {
+        $self->_detach([
+            400,
+            ['Content-Type' => 'text/plain'],
+            ['The request content contained invalid JSON: ' . $_],
+        ]);
+    };
+
+    my $error = $type->validate( $content );
+    return $content if !defined $error;
+
+    $self->_detach([
+        400,
+        ['Content-Type' => 'text/plain'],
+        ['The request content contained incorrectly structured JSON: ' . $error],
+    ]);
+}
+
+my $begin_req_type = Dict[
+    headers => ArrayRef[ Str ],
+];
+
+sub _post_begin {
+    my ($self, $req) = @_;
+
+    my $input = $self->_decode_req_content( $req, $begin_req_type );
+    $headers = HTTP::Headers::Fast->new( @{ $input->{headers} } );
+
+    my $cookies = crush_cookie( $headers->header('Cookie') );
+    my $id = $cookies->{ $starch->cookie_name() };
+    my $state = $starch->state( $id );
+
+    my $output = {
+        id => $state->id(),
+        data => $state->data(),
+    };
+
+    return [
+        200,
+        ['Content-Type' => 'application/json'],
+        [ $json->encode( $output ) ],
+    ];
+}
+
+my $finish_req_type = Dict[
+    id   => Str,
+    data => HashRef,
+];
+
+sub _post_finish {
+    my ($self, $req) = @_;
+
+    my $input = $self->_decode_req_content( $req, $begin_req_type );
+
+    my $starch = $self->starch();
+    my $state = $starch->state( $input->{id} );
+    %{ $state->data() } = %{ $input->{data} };
+    $state->save();
+
+    my $output = {
+        headers => [
+            'Set-Cookie' => bake_cookie(
+                $starch->cookie_name(),
+                $state->cookie_args(),
+            ),
+        ],
+    };
+
+    return [
+        200,
+        ['Content-Type' => 'application/json'],
+        [ $json->encode( $output ) ],
+    ];
+}
+
+1;
+__END__
+
 =head1 AUTHOR
 
 Aran Clary Deltac <bluefeetE<64>gmail.com>
@@ -151,4 +327,3 @@ development this distribution would not exist.
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
-=cut
