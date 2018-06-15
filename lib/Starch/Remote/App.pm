@@ -2,7 +2,7 @@ package Starch::Remote::App;
 
 =head1 NAME
 
-Starch::Remote::App - A plack application for running the remote Starch service.
+Starch::Remote::App - A plack application for running the Starch remote service.
 
 =head1 SYNOPSIS
 
@@ -12,9 +12,7 @@ Create a C<starch-remote.psgi> file:
     
     Starch::Remote::App->new(
         starch => {
-            store => {
-                class => '::Memory',
-            },
+            store => { class => '::Memory' },
             plugins => ['::CookieArgs'],
         },
     )->to_app();
@@ -97,10 +95,15 @@ service for sessions retrieval and storage.
 =head2 starch
 
     Starch::Remote::App->new(
-        starch => { store => { class => '::Memory' } },
+        starch => {
+            store => { class => '::Memory' },
+            plugins => [ '::CookieArgs' ],
+        },
     );
 
-This can be either a L<Starch> object, or hashref arguments to create one.
+This may be either a L<Starch> object, or hashref arguments to create one.
+
+The L<Starch::Plugin::CookieArgs> plugin is required.
 
 =head1 ENDPOINTS
 
@@ -114,11 +117,19 @@ a `data` key containing the state data.
 
 Example request content:
 
-    {"headers":["Acccept-Language","en-us","Cookie","session=4f29abc0917cb119a86c8b15e70503a4380667bf"]}
+    {
+        "headers": [
+            "Acccept-Language", "en-us",
+            "Cookie", "session=4f29abc0917cb119a86c8b15e70503a4380667bf"
+        ]
+    }
 
 Example response content:
 
-    {"id":"4f29abc0917cb119a86c8b15e70503a4380667bf","data":{"foo":1}}
+    {
+        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
+        "data": {"foo":1}
+    }
 
 =head2 POST /finish
 
@@ -129,11 +140,19 @@ Returns a JSON object with the `headers` key set to an array of key/value pairs.
 
 Example request content:
 
-    {"id":"4f29abc0917cb119a86c8b15e70503a4380667bf","data":{"foo":1,"bar":2}}
+    {
+        "id": "4f29abc0917cb119a86c8b15e70503a4380667bf",
+        "data": {"foo":1,"bar":2}
+    }
 
 Example response content:
 
-    {"headers":["Set-Cookie","session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."]}
+    {
+        "headers": [
+            "Set-Cookie",
+            "session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."
+        ]
+    }
 
 =cut
 
