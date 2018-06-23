@@ -90,6 +90,25 @@ L<Starch::Remote::Client> is a client for this service.
 L<Catalyst::Plugin::Starch::Remote> causes Catalyst to use this
 service for sessions retrieval and storage.
 
+=cut
+
+use Starch;
+use JSON;
+use Plack::Request;
+use Scalar::Util qw( blessed );
+use Try::Tiny;
+use HTTP::Headers::Fast;
+use Cookie::Baker;
+use Types::Standard -types;
+use Type::Utils -all;
+use Log::Any qw( $log );
+
+use Moo;
+use strictures 2;
+use namespace::clean;
+
+extends 'Plack::Component';
+
 =head1 REQUIRED ARGUMENTS
 
 =head2 starch
@@ -107,25 +126,73 @@ The L<Starch::Plugin::CookieArgs> plugin is required.
 
 =cut
 
-use Starch;
-use JSON;
-use Plack::Request;
-use Scalar::Util qw( blessed );
-use Try::Tiny;
-use HTTP::Headers::Fast;
-use Cookie::Baker;
-use Types::Standard -types;
+my $starch_type = declare 'InstaneOfStarch',
+    as InstanceOf[ 'Starch::Manager' ];
 
-use strictures 2;
-use namespace::clean;
+coerce $starch_type,
+    from HashRef,
+    via { Starch->new( $_ ) };
 
-use parent 'Plack::Component';
-
-use Plack::Util::Accessor qw(
-    starch
+has starch => (
+    is       => 'ro',
+    required => 1,
+    isa      => $starch_type,
+    coerce   => 1,
 );
 
-my $json;
+=head1 OPTIONAL_ARGUMENTS
+
+=head2 validate_res
+
+    Starch::Remote::App->new(
+        starch => ...,
+        validate_res => 1,
+    );
+
+When enabled this causes the response data to be validated.  By default
+this is off.  This is made available for debugging and unit testing.
+
+=cut
+
+has validate_res => (
+    is      => 'ro',
+    isa     => Bool,
+    default => 0,
+);
+
+my $json = JSON->new();
+
+sub _data_type { HashRef }
+
+my $def_begin_req_type = do {
+    my $arrayref_str_type = ArrayRef[ Str ];
+
+    my $even_arrayref_str_type = declare 'EvenArrayRefStr',
+        as $arrayref_str_type,
+        where { (@$_+0) % 2 == 0 },
+        message {
+            $arrayref_str_type->validate($_) or
+            'The array ref must contain an even number of values';
+        };
+
+    Dict[
+        headers => $even_arrayref_str_type,
+    ];
+};
+
+sub _begin_req_type { $def_begin_req_type }
+
+sub _begin_res_type {
+    my ($self) = @_;
+
+    return Dict[
+        id   => Str,
+        data => $self->_data_type(),
+    ];
+}
+
+sub _finish_req_type { $_[0]->_begin_res_type() }
+sub _finish_res_type { $_[0]->_begin_req_type() }
 
 sub _detach {
     my ($self, $res) = @_;
@@ -134,8 +201,6 @@ sub _detach {
 
 sub prepare_app {
     my ($self) = @_;
-
-    $json = JSON->new();
 
     my $starch = $self->starch();
     die "The starch argument is required" if !$starch;
@@ -163,7 +228,7 @@ sub call {
     catch {
         return $_->[1] if ref($_) eq 'ARRAY' and $_->[0] and $_->[0] eq 'STARCH-REMOTE-APP-DETACH';
 
-        warn $_;
+        $log->error( $_ );
 
         return [
             500,
@@ -198,9 +263,9 @@ sub _dispatch {
 sub _decode_req_content {
     my ($self, $req, $type) = @_;
 
-    my $json = $req->content();
+    my $raw = $req->content();
     my $content = try {
-        return $json->decode( $json );
+        return $json->decode( $raw );
     }
     catch {
         $self->_detach([
@@ -210,14 +275,41 @@ sub _decode_req_content {
         ]);
     };
 
-    my $error = $type->validate( $content );
-    return $content if !defined $error;
+    try {
+        $type->assert_valid( $content );
+    }
+    catch {
+        $self->_detach([
+            400,
+            ['Content-Type' => 'text/plain'],
+            [
+                "The request content contained incorrectly structured JSON:\n",
+                (map { "$_\n" } @{ $_->explain() }),
+            ],
+        ]);
+    };
 
-    $self->_detach([
-        400,
-        ['Content-Type' => 'text/plain'],
-        ['The request content contained incorrectly structured JSON: ' . $error],
-    ]);
+    return $content;
+}
+
+sub _encode_res_content {
+    my ($self, $content, $type) = @_;
+
+    if ($self->validate_res()) {
+        my $error = $type->validate( $content );
+        die "Failure validating response content: $error" if defined $error;
+    }
+
+    return try {
+        return [
+            200,
+            [ 'Content-Type' => 'application/json' ],
+            [ $json->encode( $content ) ],
+        ];
+    }
+    catch {
+        die "Failure encoding response content: $_";
+    };
 }
 
 =head1 ENDPOINTS
@@ -227,8 +319,9 @@ sub _decode_req_content {
 Expects the request content to be a JSON object with a single key, `headers`,
 containing an array of all HTTP headers that the caller received.
 
-Returns a JSON object with the `id` key set to the ID of the Starch state, and
-a `data` key containing the state data.
+On success, returns a C<200> response with the content containing a JSON object
+with the C<id> key set to the ID of the Starch state, and a C<data> key containing
+the state data.
 
 Example request content:
 
@@ -246,32 +339,29 @@ Example response content:
         "data": {"foo":1}
     }
 
-=cut
+If the request content does not contain JSON, or the JSON is invalid, then
+a C<400> response will be returned and the content will be a string explaining
+the issue.
 
-my $begin_req_type = Dict[
-    headers => ArrayRef[ Str ],
-];
+=cut
 
 sub _post_begin {
     my ($self, $req) = @_;
 
-    my $input = $self->_decode_req_content( $req, $begin_req_type );
-    $headers = HTTP::Headers::Fast->new( @{ $input->{headers} } );
+    my $starch = $self->starch();
+    my $input = $self->_decode_req_content( $req, $self->_begin_req_type() );
+    my $headers = HTTP::Headers::Fast->new( @{ $input->{headers} } );
 
     my $cookies = crush_cookie( $headers->header('Cookie') );
     my $id = $cookies->{ $starch->cookie_name() };
     my $state = $starch->state( $id );
 
-    my $output = {
+    my $content = {
         id => $state->id(),
         data => $state->data(),
     };
 
-    return [
-        200,
-        ['Content-Type' => 'application/json'],
-        [ $json->encode( $output ) ],
-    ];
+    return $self->_encode_res_content( $content, $self->_begin_res_type );
 }
 
 =head2 POST /finish
@@ -279,7 +369,8 @@ sub _post_begin {
 Expects the request content to be a JSON object with the `id` key set to the ID
 of the Starch state, and the `data` key set to the new state data to be saved.
 
-Returns a JSON object with the `headers` key set to an array of key/value pairs.
+On success, returns a C<200> response with the content containing a JSON object
+with the C<headers> key set to an array of key/value pairs.
 
 Example request content:
 
@@ -297,24 +388,23 @@ Example response content:
         ]
     }
 
-=cut
+If the request content does not contain JSON, or the JSON is invalid, then
+a C<400> response will be returned and the content will be a string explaining
+the issue.
 
-my $finish_req_type = Dict[
-    id   => Str,
-    data => HashRef,
-];
+=cut
 
 sub _post_finish {
     my ($self, $req) = @_;
 
-    my $input = $self->_decode_req_content( $req, $begin_req_type );
-
     my $starch = $self->starch();
+    my $input = $self->_decode_req_content( $req, $self->_finish_req_type() );
+
     my $state = $starch->state( $input->{id} );
     %{ $state->data() } = %{ $input->{data} };
     $state->save();
 
-    my $output = {
+    my $content = {
         headers => [
             'Set-Cookie' => bake_cookie(
                 $starch->cookie_name(),
@@ -323,11 +413,7 @@ sub _post_finish {
         ],
     };
 
-    return [
-        200,
-        ['Content-Type' => 'application/json'],
-        [ $json->encode( $output ) ],
-    ];
+    return $self->_encode_res_content( $content, $self->_finish_res_type );
 }
 
 1;

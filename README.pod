@@ -105,6 +105,18 @@ This may be either a L<Starch> object, or hashref arguments to create one.
 
 The L<Starch::Plugin::CookieArgs> plugin is required.
 
+=head1 OPTIONAL_ARGUMENTS
+
+=head2 validate_res
+
+    Starch::Remote::App->new(
+        starch => ...,
+        validate_res => 1,
+    );
+
+When enabled this causes the response data to be validated.  By default
+this is off.  This is made available for debugging and unit testing.
+
 =head1 ENDPOINTS
 
 =head2 POST /begin
@@ -112,8 +124,9 @@ The L<Starch::Plugin::CookieArgs> plugin is required.
 Expects the request content to be a JSON object with a single key, `headers`,
 containing an array of all HTTP headers that the caller received.
 
-Returns a JSON object with the `id` key set to the ID of the Starch state, and
-a `data` key containing the state data.
+On success, returns a C<200> response with the content containing a JSON object
+with the C<id> key set to the ID of the Starch state, and a C<data> key containing
+the state data.
 
 Example request content:
 
@@ -131,12 +144,17 @@ Example response content:
         "data": {"foo":1}
     }
 
+If the request content does not contain JSON, or the JSON is invalid, then
+a C<400> response will be returned and the content will be a string explaining
+the issue.
+
 =head2 POST /finish
 
 Expects the request content to be a JSON object with the `id` key set to the ID
 of the Starch state, and the `data` key set to the new state data to be saved.
 
-Returns a JSON object with the `headers` key set to an array of key/value pairs.
+On success, returns a C<200> response with the content containing a JSON object
+with the C<headers> key set to an array of key/value pairs.
 
 Example request content:
 
@@ -153,6 +171,10 @@ Example response content:
             "session=4f29abc0917cb119a86c8b15e70503a4380667bf; domain=.example.com; path=/; ..."
         ]
     }
+
+If the request content does not contain JSON, or the JSON is invalid, then
+a C<400> response will be returned and the content will be a string explaining
+the issue.
 
 =head1 AUTHOR
 
