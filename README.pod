@@ -54,7 +54,7 @@ HTTP headers that the web application received in it's request.
 
 The Starch remote's response includes the L<Starch::State/id> and the
 L<Starch::State/data> of the session.  If no C<id> could be derived from
-the hedaers supplied in the subrequest then a new state will be created and
+the headers supplied in the subrequest then a new state will be created and
 it's C<id> and empty C<data> will be returned.
 
 =item 4
@@ -65,7 +65,7 @@ application will read, and potentially, write to the C<data> hash as needed.
 =item 5
 
 When the web application is ready to send response headers back to the client
-it issues a C<POST> subrequest agains the C</finish> endpoint of the Starch
+it first issues a C<POST> subrequest agains the C</finish> endpoint of the Starch
 remote service.  The C<POST> subrequest includes the C<id> and C<data>
 originally supplied in step #3, but the C<data> may have been modified during
 step #4.
@@ -82,6 +82,10 @@ And, finally, the web application returns a response.
 =back
 
 See L</ENDPOINTS> for more, including example request and response JSON bodies.
+
+=head1 LOGGING
+
+L<Log::Any> is used for all logging.
 
 =head1 CLIENTS
 
@@ -117,11 +121,14 @@ The L<Starch::Plugin::CookieArgs> plugin is required.
 When enabled this causes the response data to be validated.  By default
 this is off.  This is made available for debugging and unit testing.
 
+Failed response validation will cause a C<500> to be returned and for
+a detailed error log to be recorded.
+
 =head1 ENDPOINTS
 
 =head2 POST /begin
 
-Expects the request content to be a JSON object with a single key, `headers`,
+Expects the request content to be a JSON object with a single key, C<headers>,
 containing an array of all HTTP headers that the caller received.
 
 On success, returns a C<200> response with the content containing a JSON object
@@ -150,8 +157,8 @@ the issue.
 
 =head2 POST /finish
 
-Expects the request content to be a JSON object with the `id` key set to the ID
-of the Starch state, and the `data` key set to the new state data to be saved.
+Expects the request content to be a JSON object with the C<id> key set to the ID
+of the Starch state, and the C<data> key set to the new state data to be saved.
 
 On success, returns a C<200> response with the content containing a JSON object
 with the C<headers> key set to an array of key/value pairs.
