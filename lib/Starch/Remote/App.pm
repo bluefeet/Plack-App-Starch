@@ -169,8 +169,6 @@ has validate_res => (
 
 my $json = JSON->new();
 
-sub _data_type { HashRef }
-
 my $def_begin_req_type = do {
     my $arrayref_str_type = ArrayRef[ Str ];
 
@@ -186,19 +184,16 @@ my $def_begin_req_type = do {
         headers => $even_arrayref_str_type,
     ];
 };
-
 sub _begin_req_type { $def_begin_req_type }
 
-sub _begin_res_type {
-    my ($self) = @_;
-
-    return Dict[
-        id   => Str,
-        data => $self->_data_type(),
-    ];
-}
+my $def_begin_res_type = Dict[
+    id   => Str,
+    data => HashRef,
+];
+sub _begin_res_type { $def_begin_res_type }
 
 sub _finish_req_type { $_[0]->_begin_res_type() }
+
 sub _finish_res_type { $_[0]->_begin_req_type() }
 
 sub _detach {
@@ -232,7 +227,6 @@ sub call {
 sub _dispatch {
     my ($self, $env) = @_;
 
-    my $starch = $self->starch();
     my $req = Plack::Request->new( $env );
     my $path = $req->path();
     my $verb = $req->method();
@@ -348,7 +342,7 @@ sub _post_begin {
         data => $state->data(),
     };
 
-    return $self->_encode_res_content( $content, $self->_begin_res_type );
+    return $self->_encode_res_content( $content, $self->_begin_res_type() );
 }
 
 =head2 POST /finish
@@ -400,7 +394,7 @@ sub _post_finish {
         ],
     };
 
-    return $self->_encode_res_content( $content, $self->_finish_res_type );
+    return $self->_encode_res_content( $content, $self->_finish_res_type() );
 }
 
 1;

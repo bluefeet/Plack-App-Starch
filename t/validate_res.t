@@ -11,7 +11,11 @@ use strictures 2;
     use Types::Standard -types;
     use Moo;
     extends 'Starch::Remote::App';
-    sub _data_type { Dict[ foo=>Str ] }
+    my $def_begin_res_type = Dict[
+        id   => Str,
+        data => Dict[ foo=>Str ],
+    ];
+    sub _begin_res_type { $def_begin_res_type }
 }
 
 my @tests = (
