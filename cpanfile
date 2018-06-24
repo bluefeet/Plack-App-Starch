@@ -1,12 +1,15 @@
-requires 'strictures' => '2.000003';
+requires 'Moo'              => 2.000000;
+requires 'strictures'       => '2.000003';
 requires 'namespace::clean' => '0.27';
 
 requires 'Starch' => '0.07';
 requires 'HTTP::Headers::Fast' => '0.12';
 requires 'Cookie::Baker' => '0.06';
 requires 'Types::Standard' => '1.002001';
+requires 'Type::Utils' => '1.002001';
 requires 'JSON' => '2.59';
 requires 'Try::Tiny' => '0.28';
+requires 'Log::Any' => 1.03;
 
 # We don't depend on Plack.pm directly, but it is the only module in the Plack
 # distro which has a version.
