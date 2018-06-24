@@ -23,12 +23,12 @@ Then launch it:
 
 =head1 DESCRIPTION
 
-This L<Plack> service exposes L<Starch> in a way that allows for mostly
+This L<Plack> service exposes L<Starch> in a way that allows for a mostly
 hands-free integration of Starch with disparate HTTP applications, including
-applications written in other languages.  Having a central engine for
+applications written in other languages.  Having a central service for
 managing sessions can be especially important in polyglot organizations,
 allowing for web applications to be written in multiple languages yet
-still share the same session backend and logic.
+still share the same session backend logic.
 
 =head1 INTEGRATION
 
@@ -92,7 +92,7 @@ L<Log::Any> is used for all logging.
 L<Starch::Remote::Client> is a client for this service.
 
 L<Catalyst::Plugin::Starch::Remote> causes Catalyst to use this
-service for sessions retrieval and storage.
+service for session retrieval and storage.
 
 =cut
 
@@ -130,8 +130,8 @@ The L<Starch::Plugin::CookieArgs> plugin is required.
 
 =cut
 
-my $starch_type = declare 'InstaneOfStarch',
-    as InstanceOf[ 'Starch::Manager' ];
+my $starch_type = InstanceOf[ 'Starch::Manager' ]
+                & ConsumerOf[ 'Starch::Plugin::CookieArgs::Manager' ];
 
 coerce $starch_type,
     from HashRef,
@@ -204,26 +204,6 @@ sub _finish_res_type { $_[0]->_begin_req_type() }
 sub _detach {
     my ($self, $res) = @_;
     die ['STARCH-REMOTE-APP-DETACH', $res];
-}
-
-sub prepare_app {
-    my ($self) = @_;
-
-    my $starch = $self->starch();
-    die "The starch argument is required" if !$starch;
-
-    if (!blessed $starch) {
-        $starch = Starch->new( $starch );
-        $self->starch( $starch );
-    }
-
-    die 'The Starch object does not support the cookie_name method (from Starch::Plugin::CookieArgs)'
-        if !$starch->can('cookie_name');
-
-    die 'The Starch state objects do not support the cookie_args method (from Starch::Plugin::CookieArgs)'
-        if !$starch->state->can('cookie_args');
-
-    return;
 }
 
 sub call {

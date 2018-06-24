@@ -23,12 +23,12 @@ Then launch it:
 
 =head1 DESCRIPTION
 
-This L<Plack> service exposes L<Starch> in a way that allows for mostly
+This L<Plack> service exposes L<Starch> in a way that allows for a mostly
 hands-free integration of Starch with disparate HTTP applications, including
-applications written in other languages.  Having a central engine for
+applications written in other languages.  Having a central service for
 managing sessions can be especially important in polyglot organizations,
 allowing for web applications to be written in multiple languages yet
-still share the same session backend and logic.
+still share the same session backend logic.
 
 =head1 INTEGRATION
 
@@ -92,7 +92,7 @@ L<Log::Any> is used for all logging.
 L<Starch::Remote::Client> is a client for this service.
 
 L<Catalyst::Plugin::Starch::Remote> causes Catalyst to use this
-service for sessions retrieval and storage.
+service for session retrieval and storage.
 
 =head1 REQUIRED ARGUMENTS
 
