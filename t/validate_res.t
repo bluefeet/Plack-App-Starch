@@ -7,10 +7,10 @@ use Types::Standard -types;
 use strictures 2;
 
 {
-    package Failing::Starch::Remote::App;
+    package Failing::Starch::Remote::Service;
     use Types::Standard -types;
     use Moo;
-    extends 'Starch::Remote::App';
+    extends 'Starch::Remote::Service';
     my $def_begin_res_type = Dict[
         id   => Str,
         data => Dict[ foo=>Str ],
@@ -28,7 +28,7 @@ my @tests = (
 foreach my $test (@tests) {
     my ($validate_res, $should_fail) = @$test;
 
-    my $class = $should_fail ? 'Failing::Starch::Remote::App' : 'Starch::Remote::App';
+    my $class = $should_fail ? 'Failing::Starch::Remote::Service' : 'Starch::Remote::Service';
 
     my $app = $class->new(
         starch => {

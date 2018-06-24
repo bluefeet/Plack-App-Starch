@@ -1,16 +1,16 @@
-package Starch::Remote::App;
+package Starch::Remote::Service;
 
 =head1 NAME
 
-Starch::Remote::App - A plack application for running the Starch remote service.
+Starch::Remote::Service - A plack application for running the Starch remote service.
 
 =head1 SYNOPSIS
 
 Create a C<starch-remote.psgi> file:
 
-    use Starch::Remote::App;
+    use Starch::Remote::Service;
     
-    Starch::Remote::App->new(
+    Starch::Remote::Service->new(
         starch => {
             store => { class => '::Memory' },
             plugins => ['::CookieArgs'],
@@ -117,7 +117,7 @@ extends 'Plack::Component';
 
 =head2 starch
 
-    Starch::Remote::App->new(
+    Starch::Remote::Service->new(
         starch => {
             store => { class => '::Memory' },
             plugins => [ '::CookieArgs' ],
@@ -148,7 +148,7 @@ has starch => (
 
 =head2 validate_res
 
-    Starch::Remote::App->new(
+    Starch::Remote::Service->new(
         starch => ...,
         validate_res => 1,
     );

@@ -6,9 +6,9 @@ use JSON;
 use Types::Standard -types;
 use strictures 2;
 
-use Starch::Remote::App;
+use Starch::Remote::Service;
 
-my $app = Starch::Remote::App->new(
+my $app = Starch::Remote::Service->new(
     starch => {
         store => { class => '::Memory' },
         plugins => ['::CookieArgs'],
